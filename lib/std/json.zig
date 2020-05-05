@@ -1582,6 +1582,22 @@ fn parseInternal(comptime T: type, token: Token, tokens: *TokenStream, options: 
                 else => @compileError("Unable to parse into type '" ++ @typeName(T) ++ "'"),
             }
         },
+        .Void => {
+            switch (token) {
+                .String, .Number, .True, .False, .Null => return,
+                else => {},
+            }
+
+            var depth: usize = 0;
+            while (true) {
+                const tok = (try tokens.next()) orelse return error.UnexpectedEndOfJson;
+                if (tok == .ObjectBegin or tok == .ArrayBegin) depth += 1;
+                if (tok == .ObjectEnd or tok == .ArrayEnd) {
+                    if (depth == 0) break else depth -= 1;
+                }
+            }
+            return;
+        },
         else => @compileError("Unable to parse into type '" ++ @typeName(T) ++ "'"),
     }
     unreachable;
@@ -1596,7 +1612,7 @@ pub fn parse(comptime T: type, tokens: *TokenStream, options: ParseOptions) !T {
 /// Should be called with the same type and `ParseOptions` that were passed to `parse`
 pub fn parseFree(comptime T: type, value: T, options: ParseOptions) void {
     switch (@typeInfo(T)) {
-        .Bool, .Float, .ComptimeFloat, .Int, .ComptimeInt, .Enum => {},
+        .Bool, .Float, .ComptimeFloat, .Int, .ComptimeInt, .Enum, .Void => {},
         .Optional => {
             if (value) |v| {
                 return parseFree(@TypeOf(v), v, options);
