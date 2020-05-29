@@ -77,6 +77,11 @@ typedef struct Vector5 {
     float q;
 } Vector5;
 
+typedef union UnionFloat2 {
+    float x;
+    double y;
+} UnionFloat2;
+
 void run_c_tests(void) {
     zig_u8(0xff);
     zig_u16(0xfffe);
@@ -253,4 +258,8 @@ void c_big_struct_floats(Vector5 vec) {
     assert_or_panic(vec.z == -12.0);
     assert_or_panic(vec.w == 69);
     assert_or_panic(vec.q == 55);
+}
+
+void c_union_floats(UnionFloat2 union_float) {
+    assert_or_panic(union_float.y == 123.33);
 }

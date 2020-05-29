@@ -2063,25 +2063,6 @@ static bool iter_function_params_c_abi(CodeGen *g, ZigType *fn_type, FnWalk *fn_
             }
             return true;
         } else if (abi_class == X64CABIClass_SSE) {
-            // For now only handle structs with only floats/doubles in it.
-            if (ty->id != ZigTypeIdStruct) {
-                if (source_node != nullptr) {
-                    give_up_with_c_abi_error(g, source_node);
-                }
-                // otherwise allow codegen code to report a compile error
-                return false;
-            }
-
-            for (uint32_t i = 0; i < ty->data.structure.src_field_count; i += 1) {
-                if (ty->data.structure.fields[i]->type_entry->id != ZigTypeIdFloat) {
-                    if (source_node != nullptr) {
-                        give_up_with_c_abi_error(g, source_node);
-                    }
-                    // otherwise allow codegen code to report a compile error
-                    return false;
-                }
-            }
-
             // The SystemV ABI says that we have to setup 1 FP register per f64.
             // So two f32 can be passed in one f64, but 3 f32 have to be passed in 2 FP registers.
             // To achieve this with LLVM API, we pass multiple f64 parameters to the LLVM function if

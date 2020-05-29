@@ -295,3 +295,16 @@ test "C ABI structs of floats as parameter" {
     };
     c_big_struct_floats(v5);
 }
+
+const UnionFloat2 = extern union {
+    x: f32,
+    y: f64,
+};
+extern fn c_union_floats(UnionFloat2) void;
+
+test "C ABI union of floats as parameter" {
+    var unionfloat = UnionFloat2{
+        .y = 123.33,
+    };
+    c_union_floats(unionfloat);
+}

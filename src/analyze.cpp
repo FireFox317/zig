@@ -7957,13 +7957,25 @@ static X64CABIClass type_system_V_abi_x86_64_class(CodeGen *g, ZigType *ty, size
         case ZigTypeIdFloat:
         case ZigTypeIdVector:
             return X64CABIClass_SSE;
-        case ZigTypeIdStruct: {
+        case ZigTypeIdStruct:
+        case ZigTypeIdUnion: {
             // "If the size of an object is larger than four eightbytes, or it contains unaligned
             // fields, it has class MEMORY"
             if (ty_size > 32)
                 return X64CABIClass_MEMORY;
-            if (ty->data.structure.layout != ContainerLayoutExtern) {
-                // TODO determine whether packed structs have any unaligned fields
+
+            ContainerLayout container_layout;
+            uint32_t field_count;
+            if (ty->id == ZigTypeIdStruct) {
+                container_layout = ty->data.structure.layout;
+                field_count = ty->data.structure.src_field_count;
+            } else {
+                container_layout = ty->data.unionation.layout;
+                field_count = ty->data.unionation.src_field_count;
+            }
+
+            if (container_layout != ContainerLayoutExtern) {
+                // TODO determine whether packed structs/unions have any unaligned fields
                 return X64CABIClass_Unknown;
             }
             // "If the size of the aggregate exceeds two eightbytes and the first eight-
@@ -7974,41 +7986,33 @@ static X64CABIClass type_system_V_abi_x86_64_class(CodeGen *g, ZigType *ty, size
                 // be memory.
                 return X64CABIClass_MEMORY;
             }
+
+            // For now we only support structs/unions with only floats in it, so if the detection code
+            // below figured out that SSE is required and not all fields are floats, then bail out.
+            bool float_support = true;
             X64CABIClass working_class = X64CABIClass_Unknown;
-            for (uint32_t i = 0; i < ty->data.structure.src_field_count; i += 1) {
-                X64CABIClass field_class = type_c_abi_x86_64_class(g, ty->data.structure.fields[0]->type_entry);
+            for (uint32_t i = 0; i < field_count; i += 1) {
+                ZigType *field_type;
+                if (ty->id == ZigTypeIdStruct) {
+                    field_type = ty->data.structure.fields[0][i].type_entry;
+                } else {
+                    field_type = ty->data.unionation.fields[i].type_entry;
+                }
+
+                if (field_type->id != ZigTypeIdFloat) float_support = false;
+
+                X64CABIClass field_class = type_c_abi_x86_64_class(g, field_type);
                 if (field_class == X64CABIClass_Unknown)
                     return X64CABIClass_Unknown;
                 if (i == 0 || field_class == X64CABIClass_MEMORY || working_class == X64CABIClass_SSE) {
                     working_class = field_class;
                 }
             }
-            return working_class;
-        }
-        case ZigTypeIdUnion: {
-            // "If the size of an object is larger than four eightbytes, or it contains unaligned
-            // fields, it has class MEMORY"
-            if (ty_size > 32)
-                return X64CABIClass_MEMORY;
-            if (ty->data.unionation.layout != ContainerLayoutExtern)
-                return X64CABIClass_MEMORY;
-            // "If the size of the aggregate exceeds two eightbytes and the first eight-
-            // byte isn’t SSE or any other eightbyte isn’t SSEUP, the whole argument
-            // is passed in memory."
-            if (ty_size > 16) {
-                // Zig doesn't support vectors and large fp registers yet, so this will always
-                // be memory.
-                return X64CABIClass_MEMORY;
+
+            if (working_class == X64CABIClass_SSE && !float_support) {
+                return X64CABIClass_Unknown;
             }
-            X64CABIClass working_class = X64CABIClass_Unknown;
-            for (uint32_t i = 0; i < ty->data.unionation.src_field_count; i += 1) {
-                X64CABIClass field_class = type_c_abi_x86_64_class(g, ty->data.unionation.fields->type_entry);
-                if (field_class == X64CABIClass_Unknown)
-                    return X64CABIClass_Unknown;
-                if (i == 0 || field_class == X64CABIClass_MEMORY || working_class == X64CABIClass_SSE) {
-                    working_class = field_class;
-                }
-            }
+
             return working_class;
         }
         default:
